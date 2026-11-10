@@ -1,0 +1,366 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PayFlow - Secure Checkout</title>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .checkout-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            padding: 35px;
+            border-radius: 18px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 26px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 30px;
+        }
+
+        .product-icon {
+            width: 75px;
+            height: 75px;
+            background: #eff6ff;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 35px;
+            margin: 0 auto 20px;
+        }
+
+        h2 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        .price-box {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .price-label {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .price {
+            font-size: 32px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+
+        .pay-button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .pay-button:hover {
+            background: #1d4ed8;
+        }
+
+        .pay-button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .secure-text {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .status {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #475569;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="checkout-card">
+
+        <div class="logo">PayFlow</div>
+
+        <div class="product-icon">🛍️</div>
+
+        <h2>Demo Product</h2>
+
+        <p class="description">
+            Secure payment demonstration using Razorpay
+        </p>
+
+        <div class="price-box">
+            <div class="price-label">Total Amount</div>
+            <div class="price">₹100.00</div>
+        </div>
+
+        <button
+            class="pay-button"
+            id="payButton"
+            onclick="payNow()"
+        >
+            Pay ₹100 Now
+        </button>
+
+        <div class="status" id="status"></div>
+
+        <p class="secure-text">
+            🔒 Secure payment powered by Razorpay
+        </p>
+
+    </div>
+
+    <script>
+
+        async function payNow() {
+
+            const button = document.getElementById("payButton");
+            const status = document.getElementById("status");
+
+            button.disabled = true;
+            button.innerText = "Creating Order...";
+            status.innerText = "";
+
+            try {
+
+                // STEP 1: CREATE ORDER
+
+                console.log("Creating Razorpay order...");
+
+                const orderResponse = await fetch("/create-order/", {
+                    method: "POST"
+                });
+
+                const data = await orderResponse.json();
+
+                console.log("Order creation response:", data);
+
+                if (!orderResponse.ok || !data.success) {
+                    throw new Error(data.error || "Unable to create order");
+                }
+
+                // STEP 2: RAZORPAY CHECKOUT OPTIONS
+
+                const options = {
+
+                    key: data.key,
+
+                    amount: data.amount,
+
+                    currency: data.currency,
+
+                    name: "PayFlow Demo",
+
+                    description: "Demo Product",
+
+                    order_id: data.order_id,
+
+                    handler: async function (razorpayResponse) {
+
+                        console.log(
+                            "Razorpay payment response:",
+                            razorpayResponse
+                        );
+
+                        status.innerText = "Verifying payment...";
+
+                        try {
+
+                            // STEP 3: VERIFY PAYMENT WITH DJANGO
+
+                            const verificationResponse = await fetch(
+                                "/verify-payment/",
+                                {
+                                    method: "POST",
+
+                                    headers: {
+                                        "Content-Type": "application/json"
+                                    },
+
+                                    body: JSON.stringify(razorpayResponse)
+                                }
+                            );
+
+                            console.log(
+                                "Verification HTTP Status:",
+                                verificationResponse.status
+                            );
+
+                            // Read response body
+
+                            const responseText =
+                                await verificationResponse.text();
+
+                            console.log(
+                                "VERIFY RESPONSE:",
+                                responseText
+                            );
+
+                            if (!responseText) {
+                                throw new Error(
+                                    "Server returned an empty response"
+                                );
+                            }
+
+                            const result = JSON.parse(responseText);
+
+                            if (
+                                verificationResponse.ok &&
+                                result.success
+                            ) {
+
+                                status.innerText = "Payment verified!";
+
+                                alert(
+                                    "Payment verified successfully!"
+                                );
+
+                                window.location.href =
+                                    "/payment-success/";
+
+                            } else {
+
+                                throw new Error(
+                                    result.error ||
+                                    "Payment verification failed"
+                                );
+
+                            }
+
+                        } catch (error) {
+
+                            console.error(
+                                "Verification error:",
+                                error
+                            );
+
+                            status.innerText =
+                                "Payment verification failed.";
+
+                            alert(error.message);
+
+                        } finally {
+
+                            button.disabled = false;
+                            button.innerText = "Pay ₹100 Now";
+
+                        }
+
+                    },
+
+                    modal: {
+
+                        ondismiss: function () {
+
+                            console.log(
+                                "Razorpay checkout closed by user"
+                            );
+
+                            button.disabled = false;
+                            button.innerText = "Pay ₹100 Now";
+
+                            status.innerText =
+                                "Payment window closed.";
+
+                        }
+
+                    },
+
+                    theme: {
+                        color: "#2563eb"
+                    }
+
+                };
+
+                // STEP 4: OPEN RAZORPAY CHECKOUT
+
+                const razorpay = new Razorpay(options);
+
+                razorpay.on("payment.failed", function (response) {
+
+                    console.error(
+                        "Payment failed:",
+                        response.error
+                    );
+
+                    alert(
+                        response.error.description ||
+                        "Payment failed. Please try again."
+                    );
+
+                    button.disabled = false;
+                    button.innerText = "Pay ₹100 Now";
+
+                    status.innerText = "Payment failed.";
+
+                });
+
+                razorpay.open();
+
+                button.innerText = "Payment Window Opened";
+
+            } catch (error) {
+
+                console.error("Checkout error:", error);
+
+                alert(error.message);
+
+                button.disabled = false;
+                button.innerText = "Pay ₹100 Now";
+
+                status.innerText = "Unable to start checkout.";
+
+            }
+
+        }
+
+    </script>
+
+</body>
+</html>
