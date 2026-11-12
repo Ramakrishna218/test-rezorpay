@@ -1,3 +1,4 @@
+
 from django.contrib import admin
 from .models import Payment
 
@@ -7,6 +8,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
     list_display = (
         'razorpay_order_id',
+        'razorpay_payment_id',
         'amount',
         'currency',
         'status',
@@ -14,6 +16,7 @@ class PaymentAdmin(admin.ModelAdmin):
     )
 
     list_filter = ('status', 'currency')
+
     search_fields = (
         'razorpay_order_id',
         'razorpay_payment_id',
